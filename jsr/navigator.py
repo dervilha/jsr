@@ -3,7 +3,10 @@ import terminal as tl
 from interface import Interface
 
 MAX_WIDTH = 30
-
+MAX_HEIGHT = 16
+OS_PATHROOT = '/' if os.name != 'nt' else ''
+DEFAULT_ICON_DIR = '📂'
+DEFAULT_ICON_FILE = '📄'
 
 class Navigator(Interface):
     def __init__(self):
@@ -20,10 +23,10 @@ class Navigator(Interface):
             23: self._ctrl_w, # <Ctrl + w>
         }
 
-        self.ICONS = {}
-
-        self.cwd = os.getcwd()
-        self.center_cursor = 0
+        self.cwd: str = os.getcwd().replace('\\', '/')
+        self.center_cursor: int = 0
+        self.centered_item: str = None
+        self.scroll: int = 0
 
         self.parent_list: list[str] = []
         self.center_list: list[str] = []
@@ -33,20 +36,30 @@ class Navigator(Interface):
 
     # Interface methods
     def keyboard(self, key, press, keycode):
-        if key in self.CONTROL_MAP.keys():
+        if key in self.CONTROL_MAP.keys() and press:
             self.CONTROL_MAP[key]()
         #print((key, keycode))
 
     def draw(self):
         self._update_lists()
-        max_height = max([len(self.parent_list), len(self.center_list), len(self.child_list)])
-        len_lists = [len(self.parent_list), len(self.center_list), len(self.child_list)]
+        # len_lists = [len(self.parent_list), len(self.center_list), len(self.child_list)]
         traveled_amount = 0
-        for i in range(max_height):
-            left = self.parent_list[i] if i < len_lists[0] else ''
-            cntr = self.center_list[i] if i < len_lists[1] else ''
-            rigt = self.child_list[i]  if i < len_lists[2] else ''
-            line = tl.move_x(0) + left + tl.move_x(MAX_WIDTH) + cntr + tl.move_x(MAX_WIDTH *2) + rigt
+        for i in range(MAX_HEIGHT):
+            items = [' ' * MAX_WIDTH for _ in range(3)]
+            for ii, ls in enumerate([self.parent_list, self.center_list, self.child_list]):
+                index = i + self.scroll
+                if index < len(ls):
+                    items[ii] = ls[index]
+
+            line = (
+                tl.move_x(0)
+                + items[0]
+                + tl.move_x(MAX_WIDTH)
+                + items[1]
+                + tl.move_x(MAX_WIDTH *2)
+                + items[2]
+                + "   "
+            )
             print(line)
             traveled_amount += 1
         print(tl.shift_y(-traveled_amount), end='')
@@ -64,30 +77,38 @@ class Navigator(Interface):
     # Private methods
     def _update_lists(self):
         dir_list = self.cwd.strip('/').split('/')
-        center_list: list[str] = os.listdir(self.cwd)
+        try:
+            center_list: list[str] = os.listdir(self.cwd)
+        except PermissionError:
+            self.cwd = os.path.dirname(self.cwd)
+            self._update_lists()
+            return
+
         center_dirs, center_files = self._format_file_list([self.cwd + '/' + item for item in center_list])
         center_list_paths = center_dirs + center_files
-        self.center_list = self._highlight_cursor(self._fill_items(center_dirs, 'D') + self._fill_items(center_files, 'F'))
+        self.centered_item = center_list_paths[self.center_cursor]
+        self.center_list = self._highlight_cursor(
+            self._fill_items(center_dirs, DEFAULT_ICON_DIR) + self._fill_items(center_files, DEFAULT_ICON_FILE)
+        )
 
         # Parent list
         parent_list: list[str] = []
-        parent_list_path = '/' + '/'.join(dir_list[:-1])
+        parent_list_path = OS_PATHROOT + '/'.join(dir_list[:-1])
         if len(dir_list) > 1:
             parent_list = os.listdir(parent_list_path)
         parent_dirs, parent_files = self._format_file_list([parent_list_path + '/' + item for item in parent_list])
-        self.parent_list = self._fill_items(parent_dirs, 'D') + self._fill_items(parent_files, 'F')
+        self.parent_list = self._fill_items(parent_dirs, DEFAULT_ICON_DIR) + self._fill_items(parent_files, DEFAULT_ICON_FILE)
 
         # Child list
         child_list: list[str] = []
-        #child_list_path: str = self.cwd + '/' + center_list_paths[self.center_cursor]
         child_list_path: str = center_list_paths[self.center_cursor]
         if os.path.isdir(child_list_path):
-            child_list = os.listdir(child_list_path)
-        print((child_list, child_list_path, center_list_paths))
+            try:
+                child_list = os.listdir(child_list_path)
+            except PermissionError:
+                child_list = []
         child_dirs, child_files   = self._format_file_list([child_list_path + '/' + item for item in child_list])
-        self.child_list  = self._fill_items(child_dirs,  'D') + self._fill_items(child_files,  'F')
-
-
+        self.child_list  = self._fill_items(child_dirs,  DEFAULT_ICON_DIR) + self._fill_items(child_files,  DEFAULT_ICON_FILE)
 
 
     def _format_file_list(self, file_list: list[str]) -> tuple[list[str]]:
@@ -107,14 +128,19 @@ class Navigator(Interface):
         for i, item in enumerate(item_list):
             name = item.split('/')[-1][:MAX_WIDTH]
             name = name + ' ' * max(0, MAX_WIDTH - len(name) - 2)
-            icon = self.ICONS.get(name, default_icon)
-            out.append(icon + ' ' + name)
+            out.append(default_icon + ' ' + name)
+
         return out
 
     def _highlight_cursor(self, full_item_list: list[str]) -> list[str]:
         if self.center_cursor >= len(full_item_list):
             return full_item_list
-        full_item_list[self.center_cursor] = tl.bgd(255, 255, 255) + tl.fgd(0, 0, 0) + full_item_list[self.center_cursor] + tl.ANSI_RESET
+        full_item_list[self.center_cursor] = (
+            tl.bgd(255, 255, 255) +
+            tl.fgd(0, 0, 0) +
+            full_item_list[self.center_cursor] +
+            tl.ANSI_RESET
+        )
         return full_item_list
 
 
@@ -129,16 +155,26 @@ class Navigator(Interface):
         ...
 
     def _control_up(self):
-        ...
-
+        self.center_cursor = max(self.center_cursor - 1, 0)
+        if self.center_cursor < self.scroll:
+            self.scroll -= 1
+        
     def _control_down(self):
-        ...
+        self.center_cursor = min(self.center_cursor + 1, len(self.center_list) -1)
+        if self.center_cursor > MAX_HEIGHT + self.scroll -1:
+            self.scroll += 1
 
-    def _control_left(selff):
-        ...
+    def _control_left(self):
+        self.cwd = os.path.dirname(self.cwd)
+        self.center_cursor = 0 # TODO: set cursor to the previous item
+        self.scroll = 0
 
     def _control_right(self):
-        ...
+        if not os.path.isdir(self.centered_item):
+            return
+        self.cwd = self.centered_item
+        self.center_cursor = 0
+        self.scroll = 0
 
 
     # Ctrl keys
