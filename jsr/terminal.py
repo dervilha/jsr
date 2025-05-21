@@ -205,7 +205,7 @@ if os.name == 'nt': # Windows
         cursor_info.bVisible = True
         ctypes.windll.kernel32.SetConsoleCursorInfo(stdout_handle, ctypes.byref(cursor_info))
 else: # UNIX
-    import tty
+    import sys, tty
     import signal
     import termios
     import select, struct
@@ -274,14 +274,14 @@ else: # UNIX
             }
         
     def set_title(title: str):
-        sys.stdout.write(f"\033]0;{title}\007", end='')
+        sys.stdout.write(f"\033]0;{title}\007")
         sys.stdout.flush()
     
     def hide_cursor():
-        sys.stdout.write("\033[?25l", end='')
+        sys.stdout.write("\033[?25l")
         sys.stdout.flush()
 
     def show_cursor():
-        sys.stdout.write("\033[?25h", end='')
+        sys.stdout.write("\033[?25h")
         sys.stdout.flush()
 
