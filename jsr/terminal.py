@@ -13,6 +13,19 @@ ANSI_INVERSE: str = "\033[7m"
 def move(x: int, y: int):
     return f"\033[{y +1};{x +1}H"
 
+def move_start_line():
+    return f"\033[0G"
+
+def move_x(x: int):
+    return f"\033[{x}G"
+
+def shift_x(amount: int):
+    return f"\033[{amount}C" if amount > 0 else "SHIFT X LEFT NOT IMPLEMENTED"
+
+def shift_y(amount: int):
+    return f"\033[{amount}B" if amount > 0 else f"\033[{-amount}A"
+
+
 def bgd(r: int, g: int, b: int):
     return f"\033[48;2;{r};{g};{b}m"
 
