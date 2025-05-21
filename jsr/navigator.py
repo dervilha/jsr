@@ -86,22 +86,29 @@ class Navigator(Interface):
 
         center_dirs, center_files = self._format_file_list([self.cwd + '/' + item for item in center_list])
         center_list_paths = center_dirs + center_files
-        self.centered_item = center_list_paths[self.center_cursor]
         self.center_list = self._highlight_cursor(
             self._fill_items(center_dirs, DEFAULT_ICON_DIR) + self._fill_items(center_files, DEFAULT_ICON_FILE)
         )
+
+        self.centered_item = center_list_paths[self.center_cursor if self.center_cursor < len(center_list_paths) else 0] 
 
         # Parent list
         parent_list: list[str] = []
         parent_list_path = OS_PATHROOT + '/'.join(dir_list[:-1])
         if len(dir_list) > 1:
-            parent_list = os.listdir(parent_list_path)
+            try:
+                parent_list = os.listdir(parent_list_path)
+            except PermissionError:
+                parent_list = []
+            except FileNotFoundError:
+                parent_list = []
+
         parent_dirs, parent_files = self._format_file_list([parent_list_path + '/' + item for item in parent_list])
         self.parent_list = self._fill_items(parent_dirs, DEFAULT_ICON_DIR) + self._fill_items(parent_files, DEFAULT_ICON_FILE)
 
         # Child list
         child_list: list[str] = []
-        child_list_path: str = center_list_paths[self.center_cursor]
+        child_list_path: str = self.centered_item
         if os.path.isdir(child_list_path):
             try:
                 child_list = os.listdir(child_list_path)
